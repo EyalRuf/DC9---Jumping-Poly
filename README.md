@@ -3,7 +3,7 @@
 You’ll need to follow a few steps before you can run my phaser game.
 
 ## 1. Clone or download this repo:
-```git clone...```
+```git clone https://github.com/EyalRuf/DC9---Jumping-Poly.git```
 
 
 ## 2. Install node.js and npm:
