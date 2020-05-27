@@ -34,5 +34,7 @@ Also this will start a watch process, so you can change the source and the proce
 ## Credits
 
 This project was created using some template repos:
+
 https://github.com/ourcade/phaser3-parcel-template
+
 https://github.com/photonstorm/phaser3-typescript-project-template
