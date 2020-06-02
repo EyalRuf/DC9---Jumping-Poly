@@ -8,6 +8,7 @@ export default class Spiker extends Phaser.Physics.Arcade.Sprite {
     currSpeed: number;
     direction: 1 | -1 = 1; // 1 => right, -1 => left
     scene: PlayScene;
+    destroyed: boolean = false;
 
     /**
      * Initializes the spiker class and it's required objects with params
@@ -32,12 +33,15 @@ export default class Spiker extends Phaser.Physics.Arcade.Sprite {
      * @param delta - Time passed since last update
      */
     update(time: number, delta: number) {
-        this.handleHorizontalMovement(delta);
-        this.handleRotation();
+        if (!this.destroyed) {
 
-        // Avoiding getting pushed by player
-        if (this.body.velocity.x != 0 || this.body.velocity.y != 0) {
-            this.setVelocity(0, 0);
+            this.handleHorizontalMovement(delta);
+            this.handleRotation();
+            
+            // Avoiding getting pushed by player
+            if (this.body.velocity.x != 0 || this.body.velocity.y != 0) {
+                this.setVelocity(0, 0);
+            }
         }
     }
     

@@ -12,10 +12,14 @@ const PRINCESS_SPRITE_NAME = 'princess';
 const PRINCESS_SPRITE_PATH = '../assets/princess.png';
 const SPIKER_SPRITE_NAME = 'spiker';
 const SPIKER_SPRITE_PATH = '../assets/spiker.png';
+const SHIELD_SPRITE_NAME = 'shield';
+const SHIELD_SPRITE_PATH = '../assets/shield.png';
 const BGMUSIC_NAME = 'BGMusic';
 const BGMUSIC_PATH = '../assets/BGMusic.mp3';
-const SPIKE_HIT_SOUND_NAME = 'spike';
-const SPIKE_HIT_SOUND_PATH = '../assets/spike.mp3';
+const SPIKER_HIT_SOUND_NAME = 'spike';
+const SPIKER_HIT_SOUND_PATH = '../assets/spike.mp3';
+const SPIKER_DEAD_SOUND_NAME = 'spiker_death';
+const SPIKER_DEAD_SOUND_PATH = '../assets/spiker_death.mp3';
 export const JUMP_SOUND_NAME = 'Jump';
 const JUMP_SOUND_PATH = '../assets/Jump.mp3';
 const levelHeight: number = 6000;
@@ -30,6 +34,9 @@ export default class PlayScene extends Phaser.Scene {
     wallTileSize: number = 64;
     spikers: Spiker[];
     spikerHitSound: Phaser.Sound.BaseSound;
+    spikerKilledSound: Phaser.Sound.BaseSound;
+    playerHasShield: boolean = false;
+    shield: Phaser.Physics.Arcade.Sprite;
 
     /**
      * Scene constructor
@@ -48,8 +55,10 @@ export default class PlayScene extends Phaser.Scene {
         this.load.image(PLATFORM_SPRITE_NAME, PLATFORM_SPRITE_PATH);
         this.load.image(PRINCESS_SPRITE_NAME, PRINCESS_SPRITE_PATH);
         this.load.image(SPIKER_SPRITE_NAME, SPIKER_SPRITE_PATH);
+        this.load.image(SHIELD_SPRITE_NAME, SHIELD_SPRITE_PATH);
         this.load.audio(BGMUSIC_NAME, [BGMUSIC_PATH]);
-        this.load.audio(SPIKE_HIT_SOUND_NAME, [SPIKE_HIT_SOUND_PATH]);
+        this.load.audio(SPIKER_HIT_SOUND_NAME, [SPIKER_HIT_SOUND_PATH]);
+        this.load.audio(SPIKER_DEAD_SOUND_NAME, [SPIKER_DEAD_SOUND_PATH]);
         this.load.audio(JUMP_SOUND_NAME, [JUMP_SOUND_PATH]);
 	}
 
@@ -73,16 +82,16 @@ export default class PlayScene extends Phaser.Scene {
         this.buildPlatforms();
         this.spawnSpikers();
 
-        // Creating colliders for platforms and spikers
-        this.physics.add.collider(this.player, this.platforms, this.playerCollidedWithPlatform, null, this);
-        this.spikers.forEach(currSpiker => this.physics.add.collider(currSpiker, this.player, null, this.playerCollidedWithSpiker), this);
-
         // Setting camera values
         this.cameras.main.setBounds(0, 0, this.boundaries.xmax, this.boundaries.ymax, true);
         this.cameras.main.startFollow(this.player, false, 1, 0.1);
         
         // Loading scene related sounds
-        this.spikerHitSound = this.sound.add(SPIKE_HIT_SOUND_NAME, { // Spiker hit sound
+        this.spikerHitSound = this.sound.add(SPIKER_HIT_SOUND_NAME, { // Spiker hit sound
+            loop: false,
+            volume: 0.75
+        });
+        this.spikerKilledSound = this.sound.add(SPIKER_DEAD_SOUND_NAME, { // Spiker hit sound
             loop: false,
             volume: 0.75
         });
@@ -102,8 +111,21 @@ export default class PlayScene extends Phaser.Scene {
 
         // Updating game obejcts that need to be updated
         this.player.update(time, delta);
-        this.spikers.forEach(currSpiker => currSpiker.update(time, delta));
+        
+        // If player has shield => shield follows player (used body cuz without it it looks choppy)
+        if (this.playerHasShield) {
+            this.shield.body.x = this.player.body.x;
+            this.shield.body.y = this.player.body.y;
+        }
+
+        // Updating all active spikers (some can die so they then become inactive)
+        this.spikers.forEach(currSpiker => {
+            if (currSpiker.active)
+                currSpiker.update(time, delta)
+        });
     }
+
+    
 
     /**
      * Builds level platforms randomly based on some constant variables and some hard coded values
@@ -133,6 +155,7 @@ export default class PlayScene extends Phaser.Scene {
 
         // Rest of platforms (screen size / avg size between each platform) = amount of platforms to fit screen
         let amountOfPlatforms = Math.floor((ymax / avgHeightBetweenPlatforms)) - 1;
+        let shieldIndex = Math.floor(Math.random() * amountOfPlatforms); // Platform index to spawn the shield in
         for (let platformIndex = 0; platformIndex < amountOfPlatforms; platformIndex++) {
             // Random height between the prev platform
             currY -= minHeightBetweenPlatforms +
@@ -158,11 +181,21 @@ export default class PlayScene extends Phaser.Scene {
                 this.platforms.create(randomX + (currPlatformTileIndex * this.wallTileSize), currY, PLATFORM_SPRITE_NAME);
             }
 
+            // Shield platform
+            if (platformIndex == shieldIndex) {
+                // Spawn on the middle and on top of the platform
+                this.spawnShield(randomX + ((currPlatformLength / 2) * this.wallTileSize), currY - this.wallTileSize);
+            }
+
             // Last/top platform
             if (platformIndex == amountOfPlatforms - 1) {
+                // Spawn on the middle and on top of the platform
                 this.spawnPrincess(randomX + ((currPlatformLength / 2) * this.wallTileSize), currY - this.wallTileSize);
             }
         }
+
+        // Collisions
+        this.physics.add.collider(this.player, this.platforms, this.playerCollidedWithPlatform, null, this);
     }
 
     /**
@@ -191,6 +224,10 @@ export default class PlayScene extends Phaser.Scene {
                 minSpikerSpawnDistance + Math.floor(Math.random() * (maxSpikerSpawnDistance - minSpikerSpawnDistance));
             currSpikerY -= randomDistanceBetweenSpikers;
         }
+
+        // Collisions
+        this.spikers.forEach(currSpiker => this.physics.add.collider(currSpiker, this.player, null,
+            this.playerCollidedWithSpiker, this), this);
     }
 
     /**
@@ -201,6 +238,16 @@ export default class PlayScene extends Phaser.Scene {
     spawnPrincess(x: number, y: number) {
         let princess = this.physics.add.sprite(x, y, PRINCESS_SPRITE_NAME);
         this.physics.add.collider(this.player, princess, this.playerCollidedWithPrincess, () => true, this);
+    }
+
+    /**
+     * Spawns shield on given position
+     * @param x - x position to spawn shield
+     * @param y - y position to spawn shield
+     */
+    spawnShield(x: number, y: number) {
+        this.shield = this.physics.add.sprite(x, y, SHIELD_SPRITE_NAME);
+        this.physics.add.collider(this.player, this.shield, this.playerCollidedWithShield, () => true, this);
     }
 
     /**
@@ -220,25 +267,42 @@ export default class PlayScene extends Phaser.Scene {
     }
 
     /**
+     * Collision between player and princess
+     */
+    playerCollidedWithShield() {
+        this.playerHasShield = true;
+    }
+
+    /**
      * Collision between player and spiker
      * @param s - spiker
      * @param p - player
      */
     playerCollidedWithSpiker(s: Spiker, p: Player) {
-        // If player is above spiker
-        if (p.y < s.y) {
-            // Jump on spiker
-            p.jump(true);
+        // Destroying spiker and shield + playing destroy spiker sound
+        if (this.playerHasShield) {
+            this.playerHasShield = false;
+            s.destroy();
+            this.shield.destroy();
+            this.spikerKilledSound.play();
         } else {
-            // If p is on ground ? push him : change his direction
-            if (p.isOnGround) {
-                p.currXSpeed = 1;
+            // If player is above spiker
+            if (p.y < s.y) {
+                // Jump on spiker
+                p.jump(true);
             } else {
-                p.direction *= -1;
-            }
+                // If p is on ground ? push him : change his direction
+                if (p.isOnGround) {
+                    p.currXSpeed = 1;
+                } else {
+                    p.direction *= -1;
+                }
 
-            if (!p.scene.spikerHitSound.isPlaying) {
-                p.scene.spikerHitSound.play();
+                // If the spiker is not dead (happens immediately after he dies sometimes) 
+                // and sound not already playing
+                if (!s.destroyed && !this.spikerHitSound.isPlaying) {
+                    this.spikerHitSound.play();
+                }
             }
         }
     }

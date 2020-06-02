@@ -27,9 +27,9 @@ Run:
 
 This will run a server so you can run the game in a browser.
 
-Open your browser and enter localhost:3000 into the address bar.
+This will also automaticly open your browser with a new tab at localhost:3000. If it doesn't you'll need to open it yourself and insert localhost:3000 into the address bar.
 
-Also this will start a watch process, so you can change the source and the process will recompile and refresh the browser
+Lastly, this will start a watch process, so you can change the source and the process will recompile and refresh the browser.
 
 ## Credits
 
